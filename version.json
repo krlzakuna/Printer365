@@ -1,0 +1,6 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1",
+  "apkUrl": "https://github.com/krlzakuna/Printer365/releases/latest/download/Printer365.apk",
+  "changelog": "• Escáner digitalizador 4 puntos estilo CamScanner.\n• Realce Mágico (fondos blancos y letras vivas).\n• Envío directo a WhatsApp y Google Drive.\n• Renombrado de archivos antes de guardar.\n• Sistema de auto-actualización OTA integrado."
+}

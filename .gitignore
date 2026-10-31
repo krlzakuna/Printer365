@@ -1,0 +1,18 @@
+# Herramientas y temporales pesados
+tools/
+camscanner_extracted/
+rawbt_apk_extracted/
+rawbt_xapk/
+salida_codigo/
+*.png
+*.apk
+*.xapk
+
+# Gradle y Build outputs
+.gradle/
+build/
+Printer365App/.gradle/
+Printer365App/.kotlin/
+Printer365App/build/
+Printer365App/app/build/
+local.properties

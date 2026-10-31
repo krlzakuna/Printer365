@@ -56,6 +56,18 @@ object FileShareHelper {
     }
 
     /**
+     * Genera una URI temporal segura para capturar fotos con la cámara nativa.
+     */
+    fun createCameraTempUri(context: Context): Uri {
+        val cameraDir = File(context.cacheDir, "camera")
+        if (!cameraDir.exists()) {
+            cameraDir.mkdirs()
+        }
+        val tempFile = File(cameraDir, "camera_capture_${System.currentTimeMillis()}.jpg")
+        return getFileUri(context, tempFile)
+    }
+
+    /**
      * Envía la imagen directamente a WhatsApp (o abre el selector de apps si no está instalada).
      */
     fun shareToWhatsApp(context: Context, fileUri: Uri, caption: String = "Documento escaneado con Printer365") {

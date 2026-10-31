@@ -37,26 +37,36 @@ private enum class CornerId {
 @Composable
 fun CamScannerCropperDialog(
     sourceBitmap: Bitmap,
+    initialCorners: QuadCorners? = null,
     onConfirmed: (Bitmap) -> Unit,
     onDismiss: () -> Unit
 ) {
     var workingBitmap by remember { mutableStateOf(sourceBitmap) }
 
+    val defaultCorners = remember(sourceBitmap, initialCorners) {
+        initialCorners ?: DocumentScannerHelper.detectDocumentCorners(sourceBitmap)
+    }
+
     // 4 esquinas del documento en coordenadas normalizadas (0.0 a 1.0)
-    var p0 by remember { mutableStateOf(PointF(0.06f, 0.08f)) } // Top-Left
-    var p1 by remember { mutableStateOf(PointF(0.94f, 0.08f)) } // Top-Right
-    var p2 by remember { mutableStateOf(PointF(0.94f, 0.92f)) } // Bottom-Right
-    var p3 by remember { mutableStateOf(PointF(0.06f, 0.92f)) } // Bottom-Left
+    var p0 by remember { mutableStateOf(defaultCorners.topLeft) } // Top-Left
+    var p1 by remember { mutableStateOf(defaultCorners.topRight) } // Top-Right
+    var p2 by remember { mutableStateOf(defaultCorners.bottomRight) } // Bottom-Right
+    var p3 by remember { mutableStateOf(defaultCorners.bottomLeft) } // Bottom-Left
 
     var activeCorner by remember { mutableStateOf(CornerId.NONE) }
     var touchPosPx by remember { mutableStateOf(Offset.Zero) }
 
+    fun runAutoDetect() {
+        val detected = DocumentScannerHelper.detectDocumentCorners(workingBitmap)
+        p0 = detected.topLeft
+        p1 = detected.topRight
+        p2 = detected.bottomRight
+        p3 = detected.bottomLeft
+    }
+
     fun rotateImage() {
         workingBitmap = BitmapHelper.rotateBitmap(workingBitmap, 90f)
-        p0 = PointF(0.06f, 0.08f)
-        p1 = PointF(0.94f, 0.08f)
-        p2 = PointF(0.94f, 0.92f)
-        p3 = PointF(0.06f, 0.92f)
+        runAutoDetect()
     }
 
     fun applyCardRatio(ratio: Float) {
@@ -318,16 +328,22 @@ fun CamScannerCropperDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             FilterChip(
+                                selected = true,
+                                onClick = { runAutoDetect() },
+                                label = { Text("🎯 Auto-detectar", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                modifier = Modifier.weight(1.2f)
+                            )
+                            FilterChip(
                                 selected = false,
                                 onClick = { applyCardRatio(85f / 54f) },
-                                label = { Text("🪪 Cédula (85:54)", fontSize = 12.sp) },
-                                modifier = Modifier.weight(1f)
+                                label = { Text("🪪 Cédula", fontSize = 12.sp) },
+                                modifier = Modifier.weight(0.9f)
                             )
                             FilterChip(
                                 selected = false,
                                 onClick = { applyCardRatio(1f / 1.414f) },
-                                label = { Text("📄 Factura A4", fontSize = 12.sp) },
-                                modifier = Modifier.weight(1f)
+                                label = { Text("📄 A4", fontSize = 12.sp) },
+                                modifier = Modifier.weight(0.7f)
                             )
                             FilterChip(
                                 selected = false,

@@ -43,12 +43,53 @@ fun MainScreen(viewModel: PrinterViewModel) {
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var showDeviceDialog by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
-    // Launcher para seleccionar factura/imagen
+    // Launcher para seleccionar factura/imagen desde galería
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.setImageUri(it) }
+    }
+
+    // Launcher para tomar foto en alta resolución con la cámara nativa
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            tempCameraUri?.let { viewModel.setImageUri(it) }
+        }
+    }
+
+    // Launcher de solicitud de permiso de Cámara
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val uri = com.example.printer365.util.FileShareHelper.createCameraTempUri(context)
+            tempCameraUri = uri
+            takePictureLauncher.launch(uri)
+        } else {
+            android.widget.Toast.makeText(
+                context,
+                "Se requiere permiso de cámara para digitalizar documentos",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun launchCamera() {
+        val hasCameraPerm = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasCameraPerm) {
+            val uri = com.example.printer365.util.FileShareHelper.createCameraTempUri(context)
+            tempCameraUri = uri
+            takePictureLauncher.launch(uri)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
     }
 
     // Launcher para permisos de Bluetooth en Android 12+
@@ -148,7 +189,8 @@ fun MainScreen(viewModel: PrinterViewModel) {
                 0 -> InvoicesTab(
                     uiState = uiState,
                     viewModel = viewModel,
-                    onPickImage = { imagePickerLauncher.launch("image/*") }
+                    onPickImage = { imagePickerLauncher.launch("image/*") },
+                    onTakePhoto = { launchCamera() }
                 )
                 1 -> Lote365TemplatesTab(
                     uiState = uiState,
@@ -205,6 +247,7 @@ fun MainScreen(viewModel: PrinterViewModel) {
     if (uiState.showCamScannerDialog && uiState.masterBitmap != null) {
         CamScannerCropperDialog(
             sourceBitmap = uiState.masterBitmap!!,
+            initialCorners = uiState.detectedCorners,
             onConfirmed = { unwarped ->
                 viewModel.applyUnwarpedDocument(unwarped)
             },
@@ -287,7 +330,8 @@ fun ConnectionStatusChip(
 fun InvoicesTab(
     uiState: PrinterUiState,
     viewModel: PrinterViewModel,
-    onPickImage: () -> Unit
+    onPickImage: () -> Unit,
+    onTakePhoto: () -> Unit
 ) {
     var viewMode by remember { mutableIntStateOf(0) } // 0 = Documento Digitalizado (Color/HD), 1 = Ticket Térmico
 
@@ -316,8 +360,16 @@ fun InvoicesTab(
                         Text("Digitalizador de Documentos", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("Cédulas, facturas, contratos o recibos", fontSize = 12.sp, color = Color.Gray)
                     }
-                    Button(onClick = onPickImage) {
-                        Text("📁 Galería")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onTakePhoto,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676))
+                        ) {
+                            Text("📷 Cámara", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(onClick = onPickImage) {
+                            Text("📁 Galería")
+                        }
                     }
                 }
 
@@ -404,31 +456,37 @@ fun InvoicesTab(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        FilterChip(
+                            selected = uiState.scannerFilter == ScannerFilter.ECO,
+                            onClick = { viewModel.setScannerFilter(ScannerFilter.ECO) },
+                            label = { Text("🍃 Eco (B&N)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold) },
+                            modifier = Modifier.weight(1.1f)
+                        )
                         FilterChip(
                             selected = uiState.scannerFilter == ScannerFilter.MAGIC_COLOR,
                             onClick = { viewModel.setScannerFilter(ScannerFilter.MAGIC_COLOR) },
-                            label = { Text("🌟 Mágico", fontSize = 11.sp) },
+                            label = { Text("🌟 Mágico", fontSize = 10.5.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = uiState.scannerFilter == ScannerFilter.DOCUMENT_BW,
                             onClick = { viewModel.setScannerFilter(ScannerFilter.DOCUMENT_BW) },
-                            label = { Text("📄 B&W Doc", fontSize = 11.sp) },
+                            label = { Text("📄 B&W Doc", fontSize = 10.5.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = uiState.scannerFilter == ScannerFilter.GRAYSCALE,
                             onClick = { viewModel.setScannerFilter(ScannerFilter.GRAYSCALE) },
-                            label = { Text("🌫️ Grises", fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f)
+                            label = { Text("🌫️ Grises", fontSize = 10.5.sp) },
+                            modifier = Modifier.weight(0.9f)
                         )
                         FilterChip(
                             selected = uiState.scannerFilter == ScannerFilter.ORIGINAL,
                             onClick = { viewModel.setScannerFilter(ScannerFilter.ORIGINAL) },
-                            label = { Text("🖼️ Original", fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f)
+                            label = { Text("🖼️ Orig.", fontSize = 10.5.sp) },
+                            modifier = Modifier.weight(0.8f)
                         )
                     }
 

@@ -38,7 +38,7 @@ data class PrinterUiState(
     val unwarpedBitmap: Bitmap? = null,    // Imagen enderezada por perspectiva
     val activeBitmap: Bitmap? = null,      // Imagen filtrada a color / vista escáner
     val previewBitmap: Bitmap? = null,     // Vista previa monocromo para impresora térmica
-    val scannerFilter: ScannerFilter = ScannerFilter.MAGIC_COLOR,
+    val scannerFilter: ScannerFilter = ScannerFilter.ECO,
     val processingMode: ProcessingMode = ProcessingMode.DOCUMENT_ADAPTIVE,
     val documentFileName: String = FileShareHelper.generateDefaultFileName(),
     val invertColors: Boolean = false,
@@ -46,9 +46,10 @@ data class PrinterUiState(
     val manualThreshold: Float = 128f,     // 0 a 255
     val contrast: Float = 20f,             // -50 a 100
     val showCamScannerDialog: Boolean = false,
+    val detectedCorners: com.example.printer365.scanner.QuadCorners? = null,
     val showRenameDialog: Boolean = false,
-    val currentVersionCode: Int = 2,
-    val currentVersionName: String = "1.1",
+    val currentVersionCode: Int = 3,
+    val currentVersionName: String = "1.2",
     val updateUrl: String = UpdateManager.DEFAULT_UPDATE_URL,
     val availableUpdate: AppUpdateInfo? = null,
     val isDownloadingUpdate: Boolean = false,
@@ -175,6 +176,7 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val filtered = withContext(Dispatchers.Default) {
                 when (filter) {
+                    ScannerFilter.ECO -> DocumentScannerHelper.applyEcoFilter(base)
                     ScannerFilter.MAGIC_COLOR -> DocumentScannerHelper.applyMagicColor(base)
                     ScannerFilter.DOCUMENT_BW -> {
                         BitmapHelper.processImage(
@@ -214,17 +216,35 @@ class PrinterViewModel(application: Application) : AndroidViewModel(application)
                         MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
                     }
                 }
+
+                // Autodetección inmediata de bordes estilo CamScanner
+                val detected = withContext(Dispatchers.Default) {
+                    DocumentScannerHelper.detectDocumentCorners(bitmap)
+                }
+
                 _uiState.value = _uiState.value.copy(
                     selectedImageUri = uri,
                     masterBitmap = bitmap,
                     unwarpedBitmap = bitmap,
                     activeBitmap = bitmap,
+                    detectedCorners = detected,
+                    showCamScannerDialog = true, // Abre automáticamente el visor de recorte con las 4 esquinas detectadas
                     documentFileName = FileShareHelper.generateDefaultFileName()
                 )
                 applyScannerFilterToActive()
             } catch (e: Exception) {
                 showToast("Error al cargar la imagen: ${e.localizedMessage}")
             }
+        }
+    }
+
+    fun reDetectCorners() {
+        val master = _uiState.value.masterBitmap ?: return
+        viewModelScope.launch {
+            val detected = withContext(Dispatchers.Default) {
+                DocumentScannerHelper.detectDocumentCorners(master)
+            }
+            _uiState.value = _uiState.value.copy(detectedCorners = detected)
         }
     }
 
